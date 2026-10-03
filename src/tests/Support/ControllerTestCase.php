@@ -44,21 +44,21 @@ abstract class ControllerTestCase extends TestCase
     }
 
     // Returns buffered output and clears the buffer so repeated calls only see new output.
-    protected function output(): string
+    protected function capturedOutput(): string
     {
         $out = (string) ob_get_contents();
         ob_clean();
         return $out;
     }
 
-    protected function status(): int
+    protected function httpStatus(): int
     {
         return http_response_code() ?: 200;
     }
 
     protected function json(): mixed
     {
-        return json_decode($this->output(), true);
+        return json_decode($this->capturedOutput(), true);
     }
 
     protected function mockPdo(): \PDO&MockObject
