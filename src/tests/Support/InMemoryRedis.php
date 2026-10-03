@@ -13,6 +13,8 @@ final class InMemoryRedis extends Client
     /** @var list<array{0:string,1:array}> */
     public array $calls = [];
     public ?\Throwable $pingException = null;
+    /** @var (\Closure(string, array): void)|null invoked right after each call is recorded */
+    public ?\Closure $onCall = null;
 
     // Intentionally does not call parent::__construct(): no connection is ever opened.
     public function __construct()
@@ -24,15 +26,23 @@ final class InMemoryRedis extends Client
         $this->store[$key] = $value;
     }
 
+    private function record(string $name, array $args): void
+    {
+        $this->calls[] = [$name, $args];
+        if ($this->onCall !== null) {
+            ($this->onCall)($name, $args);
+        }
+    }
+
     public function get($key)
     {
-        $this->calls[] = ['get', [$key]];
+        $this->record('get', [$key]);
         return $this->store[$key] ?? null;
     }
 
     public function setex($key, $seconds, $value)
     {
-        $this->calls[] = ['setex', [$key, $seconds, $value]];
+        $this->record('setex', [$key, $seconds, $value]);
         $this->store[$key] = $value;
         $this->ttls[$key] = $seconds;
         return 'OK';
@@ -40,7 +50,7 @@ final class InMemoryRedis extends Client
 
     public function del(...$keys)
     {
-        $this->calls[] = ['del', $keys];
+        $this->record('del', $keys);
         $removed = 0;
         foreach ($keys as $key) {
             if (array_key_exists($key, $this->store)) {
@@ -53,7 +63,7 @@ final class InMemoryRedis extends Client
 
     public function ping($message = null)
     {
-        $this->calls[] = ['ping', $message === null ? [] : [$message]];
+        $this->record('ping', $message === null ? [] : [$message]);
         if ($this->pingException !== null) {
             throw $this->pingException;
         }
