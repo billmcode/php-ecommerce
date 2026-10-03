@@ -119,13 +119,42 @@ curl http://localhost:8080/api/products/1
 ├── db/init.sql             # schema + seed data
 └── src/
     ├── composer.json
+    ├── phpunit.xml.dist    # PHPUnit configuration
     ├── public/index.php    # entry point
-    └── app/
-        ├── Database.php    # PDO/MySQL connection
-        ├── Cache.php       # Redis (Predis) connection
-        ├── Queue.php       # RabbitMQ publisher
-        └── Router.php      # REST API routing + handlers
+    ├── app/
+    │   ├── Database.php    # PDO/MySQL connection
+    │   ├── Cache.php       # Redis (Predis) connection
+    │   ├── Queue.php       # RabbitMQ publisher
+    │   ├── Router.php      # route matching + dispatch only
+    │   └── Controllers/
+    │       ├── ProductController.php  # product handlers (Redis-cached)
+    │       ├── OrderController.php    # order handlers (transactional create + event publish)
+    │       └── HealthController.php   # /health probe
+    └── tests/
+        ├── Support/        # Redis fake, PDO helper, php://input stream, base test case
+        └── Unit/           # characterization, controller and Router tests
 ```
+
+## Running Tests
+
+The unit suite uses PHPUnit 11.5 and doubles MySQL, Redis and RabbitMQ, so no
+running services are needed. From `src/`:
+
+```bash
+composer install       # installs dev dependencies (PHPUnit)
+vendor/bin/phpunit     # or: composer test
+```
+
+Or inside the PHP container (the entrypoint installs with `--no-dev`, so install
+dev dependencies first):
+
+```bash
+docker compose run --rm php sh -c "composer install && vendor/bin/phpunit"
+```
+
+Code coverage needs a coverage driver (pcov or Xdebug) in a development
+environment, for example `vendor/bin/phpunit --coverage-text`. The production
+image does not include one.
 
 ## Ports
 
