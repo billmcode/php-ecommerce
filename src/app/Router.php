@@ -2,6 +2,7 @@
 
 namespace App;
 
+use App\Controllers\HealthController;
 use App\Controllers\OrderController;
 use App\Controllers\ProductController;
 use PDO;
@@ -10,19 +11,15 @@ use PhpAmqpLib\Connection\AMQPStreamConnection;
 
 class Router
 {
-    private PDO $db;
-    private RedisClient $cache;
-    private AMQPStreamConnection $queue;
     private ProductController $products;
     private OrderController $orders;
+    private HealthController $health;
 
     public function __construct(PDO $db, RedisClient $cache, AMQPStreamConnection $queue)
     {
-        $this->db = $db;
-        $this->cache = $cache;
-        $this->queue = $queue;
         $this->products = new ProductController($db, $cache);
         $this->orders = new OrderController($db, $cache);
+        $this->health = new HealthController($db, $cache, $queue);
     }
 
     public function handleRequest(): void
@@ -35,7 +32,7 @@ class Router
         switch (true) {
             // Health check
             case $uri === '/health' && $method === 'GET':
-                $this->health();
+                $this->health->check();
                 break;
 
             // Products
@@ -70,42 +67,5 @@ class Router
                 http_response_code(404);
                 echo json_encode(['error' => 'Not found']);
         }
-    }
-
-    // --- Health ---
-
-    private function health(): void
-    {
-        $status = ['status' => 'ok', 'services' => []];
-
-        // MySQL
-        try {
-            $this->db->query('SELECT 1');
-            $status['services']['mysql'] = 'connected';
-        } catch (\Exception $e) {
-            $status['services']['mysql'] = 'error';
-            $status['status'] = 'degraded';
-        }
-
-        // Redis
-        try {
-            $this->cache->ping();
-            $status['services']['redis'] = 'connected';
-        } catch (\Exception $e) {
-            $status['services']['redis'] = 'error';
-            $status['status'] = 'degraded';
-        }
-
-        // RabbitMQ
-        try {
-            $this->queue->isConnected()
-                ? $status['services']['rabbitmq'] = 'connected'
-                : $status['services']['rabbitmq'] = 'error';
-        } catch (\Exception $e) {
-            $status['services']['rabbitmq'] = 'error';
-            $status['status'] = 'degraded';
-        }
-
-        echo json_encode($status);
     }
 }
