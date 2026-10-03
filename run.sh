@@ -30,7 +30,13 @@ case "${1:-up}" in
   logs)
     docker compose logs -f "${2:-}"
     ;;
+  test)
+    shift
+    echo "Installing dev dependencies and running PHPUnit in the php container..."
+    docker compose exec php composer install --no-interaction
+    docker compose exec php vendor/bin/phpunit "$@"
+    ;;
   *)
-    echo "Usage: ./run.sh [up|down|reset|logs [service]]"
+    echo "Usage: ./run.sh [up|down|reset|logs [service]|test [phpunit args]]"
     ;;
 esac

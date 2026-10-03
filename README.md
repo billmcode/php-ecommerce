@@ -29,6 +29,7 @@ Services start in dependency order via health checks: MySQL, Redis, and RabbitMQ
 ./run.sh reset    # stop and remove all data
 ./run.sh logs     # tail all logs
 ./run.sh logs php # tail PHP logs only
+./run.sh test     # install dev dependencies and run the PHPUnit suite
 ```
 
 Wait for `ready to handle connections` in the PHP logs before sending requests:
@@ -113,18 +114,54 @@ curl http://localhost:8080/api/products/1
 .
 ├── docker-compose.yml      # service definitions
 ├── Dockerfile              # PHP 8.2-FPM + extensions
-├── entrypoint.sh           # composer install at startup
-├── run.sh                  # convenience shell runner
+├── entrypoint.sh           # composer install (--no-dev) at startup
+├── run.sh                  # convenience shell runner (up/down/reset/logs/test)
 ├── nginx/default.conf      # nginx -> php-fpm proxy
 ├── db/init.sql             # schema + seed data
 └── src/
     ├── composer.json
+    ├── phpunit.xml.dist    # PHPUnit configuration
     ├── public/index.php    # entry point
-    └── app/
-        ├── Database.php    # PDO/MySQL connection
-        ├── Cache.php       # Redis (Predis) connection
-        ├── Queue.php       # RabbitMQ publisher
-        └── Router.php      # REST API routing + handlers
+    ├── app/
+    │   ├── Database.php    # PDO/MySQL connection
+    │   ├── Cache.php       # Redis (Predis) connection
+    │   ├── Queue.php       # RabbitMQ publisher
+    │   ├── Router.php      # method/path matching and delegation only
+    │   └── Controllers/
+    │       ├── ProductController.php  # list, get, create, update, delete
+    │       ├── OrderController.php    # list, get, create (+ order_created publish)
+    │       └── HealthController.php   # GET /health
+    └── tests/
+        ├── Support/        # test doubles: Predis fake, scripted PDO, AMQP/publisher spies, php://input wrapper
+        ├── Characterization/  # tests through Router that pin the HTTP contract
+        ├── Controllers/    # controller-level unit tests
+        ├── Integration/    # opt-in tests against the live compose stack
+        └── RouterTest.php  # dispatch tests
+```
+
+## Running tests
+
+The PHPUnit suite needs no live MySQL, Redis or RabbitMQ: it uses in-memory doubles for all three.
+
+`entrypoint.sh` installs dependencies with `--no-dev`, and `./src` is bind-mounted into the container, so PHPUnit is removed whenever the `php` container restarts. Reinstall the dev dependencies before running the tests:
+
+```bash
+docker compose exec php composer install
+docker compose exec php vendor/bin/phpunit      # or: docker compose exec php composer test
+```
+
+`./run.sh test` does both steps; extra arguments are passed to PHPUnit (e.g. `./run.sh test --filter RouterTest`).
+
+With a local PHP >= 8.2 and Composer you can also run the suite directly from `src/`:
+
+```bash
+cd src && composer install && vendor/bin/phpunit
+```
+
+The `integration` group calls the live API at `http://localhost:8080` (override with `API_BASE_URL`; inside the compose network the API is `http://nginx`), skips itself when the stack is not reachable, and is excluded from the default run:
+
+```bash
+docker compose exec -e API_BASE_URL=http://nginx php vendor/bin/phpunit --group integration
 ```
 
 ## Ports
