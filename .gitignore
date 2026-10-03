@@ -2,3 +2,11 @@ src/vendor/
 src/composer.lock
 .env
 .DS_Store
+.phpunit.cache/
+.phpunit.result.cache
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
