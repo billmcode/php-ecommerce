@@ -1,4 +1,13 @@
 src/vendor/
 src/composer.lock
+src/.phpunit.cache/
+src/.phpunit.result.cache
+src/coverage/
 .env
 .DS_Store
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
